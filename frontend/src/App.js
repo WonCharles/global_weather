@@ -57,7 +57,7 @@ function WeatherInfo({ weather, countryName, position, onClose }) {
     } else {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
-    }
+    };
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
@@ -232,7 +232,7 @@ function App() {
 
     // Fetch country name
     try {
-      const geoResponse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`);
+      const geoResponse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`);
       const geoData = await geoResponse.json();
       if (geoData.address && geoData.address.country) {
         setClickedInfo(prev => ({ ...prev, countryName: geoData.address.country }));
