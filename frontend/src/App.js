@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, Suspense } from 'react';
+import React, { useRef, useState, useEffect, Suspense, useCallback } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, Html } from '@react-three/drei';
 import * as THREE from 'three';
@@ -31,18 +31,60 @@ const getWeatherDescription = (code) => {
 // --- 3D Components ---
 
 // 날씨 정보 패널
-function WeatherInfo({ weather, position, onClose }) {
+function WeatherInfo({ weather, countryName, position, onClose }) {
+  const [isDragging, setIsDragging] = useState(false);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const [startDrag, setStartDrag] = useState({ x: 0, y: 0 });
+
+  const handleMouseDown = useCallback((e) => {
+    setIsDragging(true);
+    setStartDrag({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+  }, [offset]);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isDragging) return;
+    setOffset({ x: e.clientX - startDrag.x, y: e.clientY - startDrag.y });
+  }, [isDragging, startDrag]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    } else {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    }
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
   if (!weather) return null;
 
   return (
     <Html position={position}>
-      <div style={{
-        background: 'rgba(25, 25, 25, 0.85)', color: 'white', padding: '15px', borderRadius: '8px',
-        border: '1px solid white', width: '280px', transform: 'translate(-50%, -110%)',
-        fontFamily: 'sans-serif', fontSize: '14px'
-      }}>
+      <div
+        onMouseDown={handleMouseDown}
+        style={{
+          background: 'rgba(25, 25, 25, 0.85)', color: 'white', padding: '15px', borderRadius: '8px',
+          border: '1px solid white', width: '280px', fontFamily: 'sans-serif', fontSize: '14px',
+          position: 'absolute', // Make it draggable in 2D screen space
+          left: `${offset.x}px`, top: `${offset.y}px`, // Apply drag offset
+          transform: 'translate(-50%, -110%)', // Initial positioning relative to 3D point
+          cursor: isDragging ? 'grabbing' : 'grab',
+          userSelect: 'none',
+          zIndex: 1000 // Ensure it's on top
+        }}
+      >
         <button onClick={onClose} style={{ position: 'absolute', top: 5, right: 5, background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>&times;</button>
-        <h3 style={{ margin: 0, fontSize: '18px', borderBottom: '1px solid #555', paddingBottom: '5px' }}>Weather Details</h3>
+        <h3 style={{ margin: 0, fontSize: '18px', borderBottom: '1px solid #555', paddingBottom: '5px' }}>
+          Weather Details {countryName && `for ${countryName}`}
+        </h3>
         <p style={{ margin: '10px 0 0' }}><b>Now:</b> {weather.current.temperature_2m}°C, {getWeatherDescription(weather.current.weather_code)}</p>
         <p style={{ margin: '5px 0 10px' }}><b>Wind:</b> {weather.current.wind_speed_10m} km/h</p>
         <h4 style={{ margin: '10px 0 5px', borderTop: '1px solid #555', paddingTop: '10px' }}>7-Day Forecast</h4>
@@ -136,13 +178,13 @@ function SatelliteTracker() {
 }
 
 // 지구본 컴포넌트
-function Sphere({ onGlobeClick, isPaused }) {
+function Sphere({ onGlobeClick, isInteractingWithGlobe }) {
   const mesh = useRef();
   const texture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/land_ocean_ice_cloud_2048.jpg');
 
   useFrame(() => {
-    if (!isPaused) {
-      mesh.current.rotation.y += 0.0005;
+    if (!isInteractingWithGlobe) {
+      mesh.current.rotation.y += 0.0005; // 느린 자동 회전
     }
   });
 
@@ -169,23 +211,40 @@ function Sphere({ onGlobeClick, isPaused }) {
 
 function App() {
   const [weather, setWeather] = useState(null);
-  const [clickedInfo, setClickedInfo] = useState({ position: null });
+  const [clickedInfo, setClickedInfo] = useState({ position: null, countryName: null });
+  const [isInteractingWithGlobe, setIsInteractingWithGlobe] = useState(false);
 
   const handleGlobeClick = async (lat, lon, position) => {
-    setClickedInfo({ position });
+    setClickedInfo({ position, countryName: null }); // Reset country name
+    
+    // Fetch weather data
     try {
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`);
-      const data = await response.json();
-      setWeather(data);
+      const weatherResponse = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`);
+      const weatherData = await weatherResponse.json();
+      setWeather(weatherData);
     } catch (error) {
       console.error("Failed to fetch weather data:", error);
       setWeather(null);
+    }
+
+    // Fetch country name
+    try {
+      const geoResponse = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`);
+      const geoData = await geoResponse.json();
+      if (geoData.address && geoData.address.country) {
+        setClickedInfo(prev => ({ ...prev, countryName: geoData.address.country }));
+      } else {
+        setClickedInfo(prev => ({ ...prev, countryName: 'Unknown Country' }));
+      }
+    } catch (error) {
+      console.error("Failed to fetch country name:", error);
+      setClickedInfo(prev => ({ ...prev, countryName: 'Unknown Country' }));
     }
   };
 
   const handleCloseWeather = () => {
     setWeather(null);
-    setClickedInfo({ position: null });
+    setClickedInfo({ position: null, countryName: null });
   }
 
   return (
@@ -195,12 +254,19 @@ function App() {
         <pointLight position={[10, 10, 10]} intensity={1.5} />
         <Suspense fallback={null}>
           <Stars radius={200} depth={50} count={10000} factor={6} />
-          <Sphere onGlobeClick={handleGlobeClick} isPaused={!!clickedInfo.position} />
-          {weather && clickedInfo.position && <WeatherInfo weather={weather} position={clickedInfo.position} onClose={handleCloseWeather} />}
+          <Sphere onGlobeClick={handleGlobeClick} isInteractingWithGlobe={isInteractingWithGlobe} />
+          {weather && clickedInfo.position && <WeatherInfo weather={weather} countryName={clickedInfo.countryName} position={clickedInfo.position} onClose={handleCloseWeather} />}
           <EventMarkers />
           <SatelliteTracker />
         </Suspense>
-        <OrbitControls enableZoom={true} enablePan={false} minDistance={2.5} maxDistance={10} />
+        <OrbitControls 
+          enableZoom={true} 
+          enablePan={false} 
+          minDistance={2.5} 
+          maxDistance={10}
+          onStart={() => setIsInteractingWithGlobe(true)}
+          onEnd={() => setIsInteractingWithGlobe(false)}
+        />
       </Canvas>
       <div style={{ position: 'absolute', top: '20px', left: '20px', color: 'white', background: 'rgba(0,0,0,0.5)', padding: '10px', borderRadius: '5px' }}>
         <h1>3D Interactive Weather Globe</h1>
