@@ -66,13 +66,16 @@ function WeatherInfo({ weather, countryName, position, onClose }) {
 
   if (!weather) return null;
 
+  // 3일치 예보만 슬라이스
+  const dailyForecast = weather.daily.time.slice(0, 3);
+
   return (
     <Html position={position}>
       <div
         onMouseDown={handleMouseDown}
         style={{
-          background: 'rgba(25, 25, 25, 0.85)', color: 'white', padding: '15px', borderRadius: '8px',
-          border: '1px solid white', width: '280px', fontFamily: 'sans-serif', fontSize: '14px',
+          background: 'rgba(25, 25, 25, 0.85)', color: 'white', padding: '8px', borderRadius: '4px',
+          border: '1px solid white', width: '140px', fontFamily: 'sans-serif', fontSize: '10px',
           position: 'absolute', // Make it draggable in 2D screen space
           left: `${offset.x}px`, top: `${offset.y}px`, // Apply drag offset
           transform: 'translate(-50%, -110%)', // Initial positioning relative to 3D point
@@ -81,16 +84,16 @@ function WeatherInfo({ weather, countryName, position, onClose }) {
           zIndex: 1000 // Ensure it's on top
         }}
       >
-        <button onClick={onClose} style={{ position: 'absolute', top: 5, right: 5, background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>&times;</button>
-        <h3 style={{ margin: 0, fontSize: '18px', borderBottom: '1px solid #555', paddingBottom: '5px' }}>
-          Weather Details {countryName && `for ${countryName}`}
+        <button onClick={onClose} style={{ position: 'absolute', top: 2, right: 2, background: 'none', border: 'none', color: 'white', fontSize: '14px', cursor: 'pointer' }}>&times;</button>
+        <h3 style={{ margin: 0, fontSize: '12px', borderBottom: '1px solid #555', paddingBottom: '3px' }}>
+          Weather {countryName && `for ${countryName}`}
         </h3>
-        <p style={{ margin: '10px 0 0' }}><b>Now:</b> {weather.current.temperature_2m}°C, {getWeatherDescription(weather.current.weather_code)}</p>
-        <p style={{ margin: '5px 0 10px' }}><b>Wind:</b> {weather.current.wind_speed_10m} km/h</p>
-        <h4 style={{ margin: '10px 0 5px', borderTop: '1px solid #555', paddingTop: '10px' }}>7-Day Forecast</h4>
-        <div style={{ maxHeight: '120px', overflowY: 'auto' }}>
-          {weather.daily.time.map((date, i) => (
-            <div key={date} style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0' }}>
+        <p style={{ margin: '5px 0 0' }}><b>Now:</b> {weather.current.temperature_2m}°C, {getWeatherDescription(weather.current.weather_code)}</p>
+        <p style={{ margin: '3px 0 5px' }}><b>Wind:</b> {weather.current.wind_speed_10m} km/h</p>
+        <h4 style={{ margin: '5px 0 3px', borderTop: '1px solid #555', paddingTop: '5px' }}>3-Day Forecast</h4>
+        <div style={{ maxHeight: '60px', overflowY: 'auto' }}>
+          {dailyForecast.map((date, i) => (
+            <div key={date} style={{ display: 'flex', justifyContent: 'space-between', padding: '1px 0' }}>
               <span>{new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
               <span>{getWeatherDescription(weather.daily.weather_code[i])}</span>
               <span>{weather.daily.temperature_2m_max[i]}° / {weather.daily.temperature_2m_min[i]}°</span>
